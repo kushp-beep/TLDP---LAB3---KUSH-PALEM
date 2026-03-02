@@ -1,13 +1,13 @@
 # pipeline.py
 # Stack Overflow Tag Analysis — ETL Pipeline
-# Author: [Your Name]
+# Author: Kush Palem
 
 import pandas as pd
 from google.cloud import bigquery
 from datetime import datetime
 import os
 
-PROJECT_ID = 'YOUR_PROJECT_ID_HERE'  # Replace with your GCP project ID
+PROJECT_ID = 'tldp-etl-lab-488800'  # Replace with your GCP project ID
 OUTPUT_DIR = 'output'
 
 START_DATE = '2020-01-01'
@@ -39,7 +39,7 @@ def extract(client: bigquery.Client) -> pd.DataFrame:
 
     # YOUR TASK: run the query and return a DataFrame
     # Hint: client.query(query).to_dataframe()
-    df = None  # Replace this line
+    df = client.query(query).to_dataframe()  # Replace this line
 
     print(f'[EXTRACT] Retrieved {len(df)} rows from BigQuery.')
     return df
@@ -53,20 +53,22 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
     print('[TRANSFORM] Cleaning and enriching data...')
 
     # Step 1: Drop nulls in 'tag' and 'total_questions'
-    pass
+    df.dropna(subset=['tag', 'total_questions'], inplace=True)
 
     # Step 2: Remove tags shorter than 2 characters (noise)
-    pass
+    df = df[df['tag'].str.len() > 1]
 
     # Step 3: Create 'unanswered_rate' = unanswered_count / total_questions
-    pass
+    df['unanswered_rate'] = round(df['unanswered_count'] / df['total_questions'], 4)
 
     # Step 4: Create 'engagement_score'
     # Formula: (avg_score * 0.4) + (avg_views / 1000 * 0.4) + (avg_answers * 0.2)
-    pass
+    df['engagement_score'] = round( (df['avg_score'] * 0.4) + (df['avg_views'] / 1000 * 0.4) +
+                                   (df['avg_answers'] * 0.2),2)
 
     # Step 5: Sort by engagement_score descending, reset index
-    pass
+    df.sort_values('engagement_score', ascending=False, inplace=True)
+    df.reset_index(drop=True, inplace=True)
 
     print(f'[TRANSFORM] Done. {len(df)} tags remaining.')
     return df
@@ -80,14 +82,15 @@ def load(df: pd.DataFrame) -> None:
     print('[LOAD] Saving results...')
 
     # Step 1: Create output directory if it doesn't exist
-    pass
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # Step 2: Build timestamped filename
     # e.g. output/stackoverflow_tags_20241015_143022.csv
-    pass
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = os.path.join(OUTPUT_DIR, f'stackoverflow_tags_{timestamp}.csv')
 
     # Step 3: Save DataFrame to CSV
-    pass
+    df.to_csv(filename, index=False)
     print(f'[LOAD] Saved to {filename}')
 
     print('[LOAD] Pipeline complete!')
